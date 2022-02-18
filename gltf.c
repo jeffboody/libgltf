@@ -2523,19 +2523,11 @@ gltf_file_t* gltf_file_open(const char* fname)
 {
 	ASSERT(fname);
 
-	gltf_file_t* self;
-	self = (gltf_file_t*) CALLOC(1, sizeof(gltf_file_t));
-	if(self == NULL)
-	{
-		LOGE("CALLOC failed");
-		return NULL;
-	}
-
 	FILE* f = fopen(fname, "r");
 	if(f == NULL)
 	{
 		LOGE("fopen %s failed", fname);
-		goto fail_fopen;
+		return NULL;
 	}
 
 	// get file lenth
@@ -2544,7 +2536,7 @@ gltf_file_t* gltf_file_open(const char* fname)
 		LOGE("fseek_end fname=%s", fname);
 		goto fail_fseek_end;
 	}
-	self->length = ftell(f);
+	size_t length = ftell(f);
 
 	// rewind to start
 	if(fseek(f, 0, SEEK_SET) == -1)
@@ -2552,6 +2544,39 @@ gltf_file_t* gltf_file_open(const char* fname)
 		LOGE("fseek_set fname=%s", fname);
 		goto fail_fseek_set;
 	}
+
+	gltf_file_t* self = gltf_file_openf(f, length);
+	if(self == NULL)
+	{
+		goto fail_openf;
+	}
+
+	fclose(f);
+
+	// success
+	return self;
+
+	// failure
+	fail_openf:
+	fail_fseek_set:
+	fail_fseek_end:
+		fclose(f);
+	return NULL;
+}
+
+gltf_file_t* gltf_file_openf(FILE* f, size_t length)
+{
+	ASSERT(f);
+
+	gltf_file_t* self;
+	self = (gltf_file_t*) CALLOC(1, sizeof(gltf_file_t));
+	if(self == NULL)
+	{
+		LOGE("CALLOC failed");
+		return NULL;
+	}
+
+	self->length = length;
 
 	// check minimum file length
 	if(self->length < sizeof(gltf_header_t))
@@ -2657,8 +2682,6 @@ gltf_file_t* gltf_file_open(const char* fname)
 		}
 	}
 
-	fclose(f);
-
 	// success
 	return self;
 
@@ -2692,10 +2715,6 @@ gltf_file_t* gltf_file_open(const char* fname)
 		cc_list_delete(&self->scenes);
 	fail_scenes:
 	fail_size:
-	fail_fseek_set:
-	fail_fseek_end:
-		fclose(f);
-	fail_fopen:
 		FREE(self);
 	return NULL;
 }

@@ -25,6 +25,7 @@
 #define gltf_H
 
 #include <inttypes.h>
+#include <stdio.h>
 
 #include "../libcc/math/cc_mat4f.h"
 #include "../libcc/math/cc_vec3f.h"
@@ -264,6 +265,7 @@ typedef struct gltf_file_s
 } gltf_file_t;
 
 gltf_file_t* gltf_file_open(const char* fname);
+gltf_file_t* gltf_file_openf(FILE* f, size_t size);
 void         gltf_file_close(gltf_file_t** _self);
 
 #endif
