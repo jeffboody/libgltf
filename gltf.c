@@ -54,24 +54,6 @@ typedef struct
 * private - objects                                        *
 ***********************************************************/
 
-static int gltf_val_int(jsmn_val_t* val)
-{
-	ASSERT(val);
-
-	int x = 0;
-	if((val->type == JSMN_TYPE_STRING) ||
-	   (val->type == JSMN_TYPE_PRIMITIVE))
-	{
-		x = (int) strtol(val->data, NULL, 0);
-	}
-	else
-	{
-		LOGE("invalid type=%u", val->type);
-	}
-
-	return x;
-}
-
 static uint32_t gltf_val_uint32(jsmn_val_t* val)
 {
 	ASSERT(val);
@@ -124,74 +106,7 @@ static void gltf_val_string(jsmn_val_t* val, char* str)
 	}
 }
 
-static void
-gltf_val_ints(jsmn_val_t* val, uint32_t count, int* x)
-{
-	ASSERT(val);
-	ASSERT(count > 0);
-	ASSERT(x);
-
-	if(val->type != JSMN_TYPE_ARRAY)
-	{
-		LOGE("invalid type=%u", val->type);
-		return;
-	}
-
-	jsmn_array_t* array = val->array;
-	if(cc_list_size(array->list) != count)
-	{
-		LOGE("invalid size=%i", cc_list_size(array->list));
-		return;
-	}
-
-	int idx = 0;
-	cc_listIter_t* iter = cc_list_head(array->list);
-	while(iter)
-	{
-		jsmn_val_t* item;
-		item   = (jsmn_val_t*) cc_list_peekIter(iter);
-		x[idx] = gltf_val_int(item);
-		++idx;
-
-		iter = cc_list_next(iter);
-	}
-}
-
-static void
-gltf_val_uint32s(jsmn_val_t* val, uint32_t count,
-                 uint32_t* x)
-{
-	ASSERT(val);
-	ASSERT(count > 0);
-	ASSERT(x);
-
-	if(val->type != JSMN_TYPE_ARRAY)
-	{
-		LOGE("invalid type=%u", val->type);
-		return;
-	}
-
-	jsmn_array_t* array = val->array;
-	if(cc_list_size(array->list) != count)
-	{
-		LOGE("invalid size=%i", cc_list_size(array->list));
-		return;
-	}
-
-	int idx = 0;
-	cc_listIter_t* iter = cc_list_head(array->list);
-	while(iter)
-	{
-		jsmn_val_t* item;
-		item   = (jsmn_val_t*) cc_list_peekIter(iter);
-		x[idx] = gltf_val_uint32(item);
-		++idx;
-
-		iter = cc_list_next(iter);
-	}
-}
-
-static void
+static int
 gltf_val_floats(jsmn_val_t* val, uint32_t count, float* x)
 {
 	ASSERT(val);
@@ -201,14 +116,14 @@ gltf_val_floats(jsmn_val_t* val, uint32_t count, float* x)
 	if(val->type != JSMN_TYPE_ARRAY)
 	{
 		LOGE("invalid type=%u", val->type);
-		return;
+		return 0;
 	}
 
 	jsmn_array_t* array = val->array;
 	if(cc_list_size(array->list) != count)
 	{
 		LOGE("invalid size=%i", cc_list_size(array->list));
-		return;
+		return 0;
 	}
 
 	int idx = 0;
@@ -222,6 +137,8 @@ gltf_val_floats(jsmn_val_t* val, uint32_t count, float* x)
 
 		iter = cc_list_next(iter);
 	}
+
+	return 1;
 }
 
 static int
@@ -309,7 +226,8 @@ static gltf_node_t* gltf_node_new(jsmn_val_t* val)
 
 		if(strcmp(kv->key, "mesh") == 0)
 		{
-			self->mesh = gltf_val_uint32(kv->val);
+			self->mesh     = gltf_val_uint32(kv->val);
+			self->has_mesh = 1;
 		}
 		else if(strcmp(kv->key, "name") == 0)
 		{
@@ -317,7 +235,8 @@ static gltf_node_t* gltf_node_new(jsmn_val_t* val)
 		}
 		else if(strcmp(kv->key, "camera") == 0)
 		{
-			self->camera = gltf_val_uint32(kv->val);
+			self->camera     = gltf_val_uint32(kv->val);
+			self->has_camera = 1;
 		}
 		else if(strcmp(kv->key, "matrix") == 0)
 		{
@@ -542,6 +461,10 @@ static gltf_camera_t* gltf_camera_new(jsmn_val_t* val)
 		return NULL;
 	}
 
+	// required members
+	int has_perspective  = 0;
+	int has_orthographic = 0;
+
 	jsmn_object_t* obj = val->obj;
 	cc_listIter_t* iter = cc_list_head(obj->list);
 	while(iter)
@@ -555,10 +478,12 @@ static gltf_camera_t* gltf_camera_new(jsmn_val_t* val)
 		else if(strcmp(kv->key, "perspective") == 0)
 		{
 			gltf_camera_parsePerspective(self, kv->val);
+			has_perspective = 1;
 		}
 		else if(strcmp(kv->key, "orthographic") == 0)
 		{
 			gltf_camera_parseOrthographic(self, kv->val);
+			has_orthographic = 1;
 		}
 		else
 		{
@@ -568,7 +493,22 @@ static gltf_camera_t* gltf_camera_new(jsmn_val_t* val)
 		iter = cc_list_next(iter);
 	}
 
-	return self;
+	// check for required members
+	if((self->type == GLTF_CAMERA_TYPE_PERSPECTIVE) &&
+	   (has_perspective  && (has_orthographic == 0)))
+	{
+		return self;
+	}
+	else if((self->type == GLTF_CAMERA_TYPE_ORTHOGRAPHIC) &&
+	        (has_orthographic && (has_perspective == 0)))
+	{
+		return self;
+	}
+
+	LOGE("invalid type=%u, has_perspective=%i, has_orthographic=%i",
+	     self->type, has_perspective, has_orthographic);
+	FREE(self);
+	return NULL;
 }
 
 static void gltf_camera_delete(gltf_camera_t** _self)
@@ -702,11 +642,13 @@ gltf_primitive_new(jsmn_val_t* val)
 		}
 		else if(strcmp(kv->key, "indices") == 0)
 		{
-			self->indices = gltf_val_uint32(kv->val);
+			self->indices     = gltf_val_uint32(kv->val);
+			self->has_indices = 1;
 		}
 		else if(strcmp(kv->key, "material") == 0)
 		{
-			self->material = gltf_val_uint32(kv->val);
+			self->material     = gltf_val_uint32(kv->val);
+			self->has_material = 1;
 		}
 		else if(strcmp(kv->key, "attributes") == 0)
 		{
@@ -910,6 +852,10 @@ gltf_materialTexture_parse(gltf_materialTexture_t* self,
 		return 0;
 	}
 
+	// required members
+	int has_index    = 0;
+	int has_texCoord = 0;
+
 	jsmn_object_t* obj  = val->obj;
 	cc_listIter_t* iter = cc_list_head(obj->list);
 	while(iter)
@@ -920,10 +866,12 @@ gltf_materialTexture_parse(gltf_materialTexture_t* self,
 		if(strcmp(kv->key, "index") == 0)
 		{
 			self->index = gltf_val_uint32(kv->val);
+			has_index   = 1;
 		}
 		else if(strcmp(kv->key, "texCoord") == 0)
 		{
 			self->texCoord = gltf_val_uint32(kv->val);
+			has_texCoord   = 1;
 		}
 		else
 		{
@@ -931,6 +879,14 @@ gltf_materialTexture_parse(gltf_materialTexture_t* self,
 		}
 
 		iter = cc_list_next(iter);
+	}
+
+	// check for required members
+	if((has_index == 0) || (has_texCoord == 0))
+	{
+		LOGE("invalid has_index=%i, has_texCoord=%i",
+		     has_index, has_texCoord);
+		return 0;
 	}
 
 	return 1;
@@ -964,6 +920,7 @@ gltf_material_parsePbrMetallicRoughness(gltf_material_t* self,
 		{
 			ret &= gltf_materialTexture_parse(&pbr->baseColorTexture,
 			                                  kv->val);
+			pbr->has_baseColorTexture = 1;
 		}
 		else if(strcmp(kv->key, "baseColorFactor") == 0)
 		{
@@ -974,6 +931,7 @@ gltf_material_parsePbrMetallicRoughness(gltf_material_t* self,
 		{
 			ret &= gltf_materialTexture_parse(&pbr->metalicRoughnessTexture,
 			                                  kv->val);
+			pbr->has_metalicRoughnessTexture = 1;
 		}
 		else if(strcmp(kv->key, "metallicFactor") == 0)
 		{
@@ -1177,6 +1135,7 @@ static gltf_material_t* gltf_material_new(jsmn_val_t* val)
 			{
 				goto fail_parse;
 			}
+			self->has_normalTexture = 1;
 		}
 		else if(strcmp(kv->key, "occlusionTexture") == 0)
 		{
@@ -1185,6 +1144,7 @@ static gltf_material_t* gltf_material_new(jsmn_val_t* val)
 			{
 				goto fail_parse;
 			}
+			self->has_occlusionTexture = 1;
 		}
 		else if(strcmp(kv->key, "emissiveTexture") == 0)
 		{
@@ -1193,6 +1153,7 @@ static gltf_material_t* gltf_material_new(jsmn_val_t* val)
 			{
 				goto fail_parse;
 			}
+			self->has_emissiveTexture = 1;
 		}
 		else if(strcmp(kv->key, "emissiveFactor") == 0)
 		{
@@ -1305,6 +1266,11 @@ static gltf_accessor_t* gltf_accessor_new(jsmn_val_t* val)
 		return NULL;
 	}
 
+	int has_componentType = 0;
+	int has_count         = 0;
+	int has_min           = 0;
+	int has_max           = 0;
+
 	uint32_t       elem  = 0;
 	jsmn_object_t* obj   = val->obj;
 	cc_listIter_t* iter  = cc_list_head(obj->list);
@@ -1315,7 +1281,8 @@ static gltf_accessor_t* gltf_accessor_new(jsmn_val_t* val)
 
 		if(strcmp(kv->key, "bufferView") == 0)
 		{
-			self->bufferView = gltf_val_uint32(kv->val);
+			self->bufferView     = gltf_val_uint32(kv->val);
+			self->has_bufferView = 1;
 		}
 		else if(strcmp(kv->key, "byteOffset") == 0)
 		{
@@ -1349,51 +1316,29 @@ static gltf_accessor_t* gltf_accessor_new(jsmn_val_t* val)
 		{
 			self->componentType = (gltf_componentType_e)
 			                      gltf_val_uint32(kv->val);
+			has_componentType   = 1;
 		}
 		else if(strcmp(kv->key, "count") == 0)
 		{
 			self->count = gltf_val_uint32(kv->val);
+			has_count   = 1;
 		}
 		else if(strcmp(kv->key, "min") == 0)
 		{
-			if(elem)
+			if(elem &&
+			   (self->componentType == GLTF_COMPONENT_TYPE_FLOAT) &&
+			   gltf_val_floats(kv->val, elem, (float*) &self->min))
 			{
-				if((self->componentType == GLTF_COMPONENT_TYPE_BYTE) ||
-				   (self->componentType == GLTF_COMPONENT_TYPE_SHORT))
-				{
-					gltf_val_ints(kv->val, elem, (int*) &self->mini);
-				}
-				else if((self->componentType == GLTF_COMPONENT_TYPE_UNSIGNED_BYTE)  ||
-				        (self->componentType == GLTF_COMPONENT_TYPE_UNSIGNED_SHORT) ||
-				        (self->componentType == GLTF_COMPONENT_TYPE_UNSIGNED_INT))
-				{
-					gltf_val_uint32s(kv->val, elem, (uint32_t*) &self->minu);
-				}
-				else if(self->componentType == GLTF_COMPONENT_TYPE_FLOAT)
-				{
-					gltf_val_floats(kv->val, elem, (float*) &self->minf);
-				}
+				has_min = 1;
 			}
 		}
 		else if(strcmp(kv->key, "max") == 0)
 		{
-			if(elem)
+			if(elem &&
+			   (self->componentType == GLTF_COMPONENT_TYPE_FLOAT) &&
+			   gltf_val_floats(kv->val, elem, (float*) &self->max))
 			{
-				if((self->componentType == GLTF_COMPONENT_TYPE_BYTE) ||
-				   (self->componentType == GLTF_COMPONENT_TYPE_SHORT))
-				{
-					gltf_val_ints(kv->val, elem, (int*) &self->maxi);
-				}
-				else if((self->componentType == GLTF_COMPONENT_TYPE_UNSIGNED_BYTE)  ||
-				        (self->componentType == GLTF_COMPONENT_TYPE_UNSIGNED_SHORT) ||
-				        (self->componentType == GLTF_COMPONENT_TYPE_UNSIGNED_INT))
-				{
-					gltf_val_uint32s(kv->val, elem, (uint32_t*) &self->maxu);
-				}
-				else if(self->componentType == GLTF_COMPONENT_TYPE_FLOAT)
-				{
-					gltf_val_floats(kv->val, elem, (float*) &self->maxf);
-				}
+				has_max = 1;
 			}
 		}
 		else
@@ -1404,10 +1349,26 @@ static gltf_accessor_t* gltf_accessor_new(jsmn_val_t* val)
 		iter = cc_list_next(iter);
 	}
 
+	// combine min/max flag
+	if(has_min && has_max)
+	{
+		self->has_minMax = 1;
+	}
+
+	// check for required members
+	if((self->type == GLTF_ACCESSOR_TYPE_UNKNOWN) ||
+	   (has_componentType == 0) || (has_count == 0))
+	{
+		LOGE("invalid type=%u, has_componentType=%i, has_count=%i",
+		     (uint32_t) self->type, has_componentType, has_count);
+		goto fail_member;
+	}
+
 	// success
 	return self;
 
 	// failure
+	fail_member:
 	fail_type:
 		FREE(self);
 	return NULL;
@@ -1452,7 +1413,8 @@ static gltf_texture_t* gltf_texture_new(jsmn_val_t* val)
 		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
 		if(strcmp(kv->key, "source") == 0)
 		{
-			self->source = gltf_val_uint32(kv->val);
+			self->source     = gltf_val_uint32(kv->val);
+			self->has_source = 1;
 		}
 		else
 		{
@@ -1497,7 +1459,11 @@ gltf_bufferView_new(jsmn_val_t* val)
 		return NULL;
 	}
 
-	jsmn_object_t* obj = val->obj;
+	// required members
+	int has_buffer     = 0;
+	int has_byteLength = 0;
+
+	jsmn_object_t* obj  = val->obj;
 	cc_listIter_t* iter = cc_list_head(obj->list);
 	while(iter)
 	{
@@ -1506,6 +1472,7 @@ gltf_bufferView_new(jsmn_val_t* val)
 		if(strcmp(kv->key, "buffer") == 0)
 		{
 			self->buffer = gltf_val_uint32(kv->val);
+			has_buffer   = 1;
 		}
 		else if(strcmp(kv->key, "byteOffset") == 0)
 		{
@@ -1514,10 +1481,12 @@ gltf_bufferView_new(jsmn_val_t* val)
 		else if(strcmp(kv->key, "byteLength") == 0)
 		{
 			self->byteLength = gltf_val_uint32(kv->val);
+			has_byteLength   = 1;
 		}
 		else if(strcmp(kv->key, "byteStride") == 0)
 		{
-			self->byteStride = gltf_val_uint32(kv->val);
+			self->byteStride     = gltf_val_uint32(kv->val);
+			self->has_byteStride = 1;
 		}
 		else
 		{
@@ -1525,6 +1494,15 @@ gltf_bufferView_new(jsmn_val_t* val)
 		}
 
 		iter = cc_list_next(iter);
+	}
+
+	// check for required members
+	if((has_buffer == 0) || (has_byteLength == 0))
+	{
+		LOGE("invalid has_buffer=%i, has_byteLength=%i",
+		     has_buffer, has_byteLength);
+		FREE(self);
+		return NULL;
 	}
 
 	return self;
@@ -1592,7 +1570,8 @@ static gltf_image_t* gltf_image_new(jsmn_val_t* val)
 
 		if(strcmp(kv->key, "bufferView") == 0)
 		{
-			self->bufferView = gltf_val_uint32(kv->val);
+			self->bufferView     = gltf_val_uint32(kv->val);
+			self->has_bufferView = 1;
 		}
 		else if(strcmp(kv->key, "mimeType") == 0)
 		{
@@ -1649,6 +1628,9 @@ static gltf_buffer_t* gltf_buffer_new(jsmn_val_t* val)
 		return NULL;
 	}
 
+	// required members
+	int has_byteLength = 0;
+
 	jsmn_object_t* obj  = val->obj;
 	cc_listIter_t* iter = cc_list_head(obj->list);
 	while(iter)
@@ -1659,6 +1641,7 @@ static gltf_buffer_t* gltf_buffer_new(jsmn_val_t* val)
 		if(strcmp(kv->key, "byteLength") == 0)
 		{
 			self->byteLength = gltf_val_uint32(kv->val);
+			has_byteLength   = 1;
 		}
 		else
 		{
@@ -1666,6 +1649,14 @@ static gltf_buffer_t* gltf_buffer_new(jsmn_val_t* val)
 		}
 
 		iter = cc_list_next(iter);
+	}
+
+	// check for required members
+	if(has_byteLength == 0)
+	{
+		LOGE("invalid has_byteLength=%i", has_byteLength);
+		FREE(self);
+		return NULL;
 	}
 
 	return self;

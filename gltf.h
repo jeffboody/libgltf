@@ -42,6 +42,13 @@ typedef struct gltf_scene_s
 
 typedef struct gltf_node_s
 {
+	struct
+	{
+		unsigned int has_mesh   : 1;
+		unsigned int has_camera : 1;
+		unsigned int has_pad    : 29;
+	};
+
 	char name[256];
 
 	// uint nd ptrs
@@ -53,6 +60,7 @@ typedef struct gltf_node_s
 
 typedef enum
 {
+	GLTF_CAMERA_TYPE_UNKNOWN,
 	GLTF_CAMERA_TYPE_PERSPECTIVE,
 	GLTF_CAMERA_TYPE_ORTHOGRAPHIC,
 } gltf_cameraType_e;
@@ -91,17 +99,24 @@ typedef struct gltf_attribute_s
 
 typedef enum
 {
-	GLTF_PRIMITIVE_MODE_POINTS         = 0,
-	GLTF_PRIMITIVE_MODE_LINES          = 1,
-	GLTF_PRIMITIVE_MODE_LINE_LOOP      = 2,
-	GLTF_PRIMITIVE_MODE_LINE_STRIP     = 3,
-	GLTF_PRIMITIVE_MODE_TRIANGLES      = 4,
-	GLTF_PRIMITIVE_MODE_TRIANGLE_STRIP = 5,
-	GLTF_PRIMITIVE_MODE_TRIANGLE_FAN   = 6,
+	GLTF_PRIMITIVE_MODE_POINTS,
+	GLTF_PRIMITIVE_MODE_LINES,
+	GLTF_PRIMITIVE_MODE_LINE_LOOP,
+	GLTF_PRIMITIVE_MODE_LINE_STRIP,
+	GLTF_PRIMITIVE_MODE_TRIANGLES,
+	GLTF_PRIMITIVE_MODE_TRIANGLE_STRIP,
+	GLTF_PRIMITIVE_MODE_TRIANGLE_FAN,
 } gltf_primitiveMode_e;
 
 typedef struct gltf_primitive_s
 {
+	struct
+	{
+		unsigned int has_indices  : 1;
+		unsigned int has_material : 1;
+		unsigned int has_pad      : 30;
+	};
+
 	gltf_primitiveMode_e mode;
 	uint32_t             indices;
 	uint32_t             material;
@@ -123,6 +138,13 @@ typedef struct gltf_materialTexture_s
 
 typedef struct gltf_materialPbrMetallicRoughness_s
 {
+	struct
+	{
+		unsigned int has_baseColorTexture        : 1;
+		unsigned int has_metalicRoughnessTexture : 1;
+		unsigned int has_pad                     : 30;
+	};
+
 	gltf_materialTexture_t baseColorTexture;
 	cc_vec4f_t             baseColorFactor;
 	gltf_materialTexture_t metalicRoughnessTexture;
@@ -145,12 +167,20 @@ typedef struct gltf_materialOcclusionTexture_s
 typedef enum
 {
 	// TODO - MASK and alpha cutoff (default 0.5)
-	GLTF_MATERIAL_ALPHAMODE_OPAQUE = 0,
-	GLTF_MATERIAL_ALPHAMODE_BLEND  = 1,
+	GLTF_MATERIAL_ALPHAMODE_OPAQUE,
+	GLTF_MATERIAL_ALPHAMODE_BLEND,
 } gltf_materialAlphaMode_e;
 
 typedef struct gltf_material_s
 {
+	struct
+	{
+		unsigned int has_normalTexture    : 1;
+		unsigned int has_occlusionTexture : 1;
+		unsigned int has_emissiveTexture  : 1;
+		unsigned int has_pad              : 29;
+	};
+
 	gltf_materialPbrMetallicRoughness_t pbrMetallicRoughness;
 	gltf_materialNormalTexture_t        normalTexture;
 	gltf_materialOcclusionTexture_t     occlusionTexture;
@@ -162,6 +192,7 @@ typedef struct gltf_material_s
 
 typedef enum
 {
+	GLTF_ACCESSOR_TYPE_UNKNOWN,
 	GLTF_ACCESSOR_TYPE_SCALAR,
 	GLTF_ACCESSOR_TYPE_VEC2,
 	GLTF_ACCESSOR_TYPE_VEC3,
@@ -184,6 +215,13 @@ typedef enum
 
 typedef struct gltf_accessor_s
 {
+	struct
+	{
+		unsigned int has_bufferView : 1;
+		unsigned int has_minMax     : 1;
+		unsigned int has_pad        : 30;
+	};
+
 	uint32_t bufferView;
 	uint32_t byteOffset;
 
@@ -192,31 +230,33 @@ typedef struct gltf_accessor_s
 
 	uint32_t count;
 
-	// based on accessorType and componentType
-	union
-	{
-		int      mini[4];
-		uint32_t minu[4];
-		float    minf[4];
-	};
-	union
-	{
-		int      maxi[4];
-		uint32_t maxu[4];
-		float    maxf[4];
-	};
+	// size based on accessorType
+	float min[4];
+	float max[4];
 
 	// TODO - sparse and indices blocks
 } gltf_accessor_t;
 
 typedef struct gltf_texture_s
 {
+	struct
+	{
+		unsigned int has_source : 1;
+		unsigned int has_pad    : 31;
+	};
+
 	uint32_t source;
 	// TODO - sampler
 } gltf_texture_t;
 
 typedef struct gltf_bufferView_s
 {
+	struct
+	{
+		unsigned int has_byteStride : 1;
+		unsigned int has_pad        : 31;
+	};
+
 	uint32_t buffer;
 	uint32_t byteOffset;
 	uint32_t byteLength;
@@ -226,13 +266,19 @@ typedef struct gltf_bufferView_s
 
 typedef enum
 {
-	GLTF_IMAGE_TYPE_UNKNOWN = 0,
-	GLTF_IMAGE_TYPE_PNG     = 1,
-	GLTF_IMAGE_TYPE_JPG     = 2,
+	GLTF_IMAGE_TYPE_UNKNOWN,
+	GLTF_IMAGE_TYPE_PNG,
+	GLTF_IMAGE_TYPE_JPG,
 } gltf_imageType_e;
 
 typedef struct gltf_image_s
 {
+	struct
+	{
+		unsigned int has_bufferView : 1;
+		unsigned int has_pad        : 31;
+	};
+
 	uint32_t bufferView;
 
 	gltf_imageType_e type;
