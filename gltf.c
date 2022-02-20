@@ -2759,3 +2759,181 @@ void gltf_file_close(gltf_file_t** _self)
 		*_self = NULL;
 	}
 }
+
+gltf_scene_t*
+gltf_file_getScene(gltf_file_t* self,
+                   uint32_t idx)
+{
+	ASSERT(self);
+
+	cc_listIter_t* iter;
+	iter = cc_list_get(self->scenes, (int) idx);
+	if(iter == NULL)
+	{
+		LOGE("invalid idx=%u", idx);
+		return NULL;
+	}
+
+	return (gltf_scene_t*) cc_list_peekIter(iter);
+}
+
+gltf_node_t*
+gltf_file_getNode(gltf_file_t* self,
+                  uint32_t idx)
+{
+	ASSERT(self);
+
+	cc_listIter_t* iter;
+	iter = cc_list_get(self->nodes, (int) idx);
+	if(iter == NULL)
+	{
+		LOGE("invalid idx=%u", idx);
+		return NULL;
+	}
+
+	return (gltf_node_t*) cc_list_peekIter(iter);
+}
+
+gltf_camera_t*
+gltf_file_getCamera(gltf_file_t* self,
+                    uint32_t idx)
+{
+	ASSERT(self);
+
+	cc_listIter_t* iter;
+	iter = cc_list_get(self->cameras, (int) idx);
+	if(iter == NULL)
+	{
+		LOGE("invalid idx=%u", idx);
+		return NULL;
+	}
+
+	return (gltf_camera_t*) cc_list_peekIter(iter);
+}
+
+gltf_mesh_t*
+gltf_file_getMesh(gltf_file_t* self,
+                  uint32_t idx)
+{
+	ASSERT(self);
+
+	cc_listIter_t* iter;
+	iter = cc_list_get(self->meshes, (int) idx);
+	if(iter == NULL)
+	{
+		LOGE("invalid idx=%u", idx);
+		return NULL;
+	}
+
+	return (gltf_mesh_t*) cc_list_peekIter(iter);
+}
+
+gltf_material_t*
+gltf_file_getMaterial(gltf_file_t* self,
+                      uint32_t idx)
+{
+	ASSERT(self);
+
+	cc_listIter_t* iter;
+	iter = cc_list_get(self->materials, (int) idx);
+	if(iter == NULL)
+	{
+		LOGE("invalid idx=%u", idx);
+		return NULL;
+	}
+
+	return (gltf_material_t*) cc_list_peekIter(iter);
+}
+
+gltf_accessor_t*
+gltf_file_getAccessor(gltf_file_t* self,
+                      uint32_t idx)
+{
+	ASSERT(self);
+
+	cc_listIter_t* iter;
+	iter = cc_list_get(self->accessors, (int) idx);
+	if(iter == NULL)
+	{
+		LOGE("invalid idx=%u", idx);
+		return NULL;
+	}
+
+	return (gltf_accessor_t*) cc_list_peekIter(iter);
+}
+
+gltf_texture_t*
+gltf_file_getTexture(gltf_file_t* self,
+                     uint32_t idx)
+{
+	ASSERT(self);
+
+	cc_listIter_t* iter;
+	iter = cc_list_get(self->textures, (int) idx);
+	if(iter == NULL)
+	{
+		LOGE("invalid idx=%u", idx);
+		return NULL;
+	}
+
+	return (gltf_texture_t*) cc_list_peekIter(iter);
+}
+
+gltf_bufferView_t*
+gltf_file_getBufferView(gltf_file_t* self,
+                        uint32_t idx)
+{
+	ASSERT(self);
+
+	cc_listIter_t* iter;
+	iter = cc_list_get(self->bufferViews, (int) idx);
+	if(iter == NULL)
+	{
+		LOGE("invalid idx=%u", idx);
+		return NULL;
+	}
+
+	return (gltf_bufferView_t*) cc_list_peekIter(iter);
+}
+
+gltf_image_t*
+gltf_file_getImage(gltf_file_t* self,
+                   uint32_t idx)
+{
+	ASSERT(self);
+
+	cc_listIter_t* iter;
+	iter = cc_list_get(self->images, (int) idx);
+	if(iter == NULL)
+	{
+		LOGE("invalid idx=%u", idx);
+		return NULL;
+	}
+
+	return (gltf_image_t*) cc_list_peekIter(iter);
+}
+
+const char*
+gltf_file_getBuffer(gltf_file_t* self,
+                    gltf_bufferView_t* bufferView)
+{
+	ASSERT(self);
+	ASSERT(bufferView);
+
+	if(bufferView->buffer != 0)
+	{
+		LOGE("unsupported buffer=%u", bufferView->buffer);
+		return NULL;
+	}
+
+	// compute the offset to buffer
+	gltf_chunk_t* chunk;
+	size_t        offset = sizeof(gltf_header_t);
+	chunk   = (gltf_chunk_t*) &self->data[offset];
+	offset += sizeof(gltf_chunk_t) + chunk->chunkLength;
+	chunk   = (gltf_chunk_t*) &self->data[offset];
+	offset += sizeof(gltf_chunk_t);
+	offset += bufferView->byteOffset;
+
+	return &self->data[offset];
+}

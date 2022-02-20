@@ -309,8 +309,28 @@ typedef struct gltf_file_s
 	char*  data;
 } gltf_file_t;
 
-gltf_file_t* gltf_file_open(const char* fname);
-gltf_file_t* gltf_file_openf(FILE* f, size_t size);
-void         gltf_file_close(gltf_file_t** _self);
+gltf_file_t*       gltf_file_open(const char* fname);
+gltf_file_t*       gltf_file_openf(FILE* f, size_t size);
+void               gltf_file_close(gltf_file_t** _self);
+gltf_scene_t*      gltf_file_getScene(gltf_file_t* self,
+                                      uint32_t idx);
+gltf_node_t*       gltf_file_getNode(gltf_file_t* self,
+                                     uint32_t idx);
+gltf_camera_t*     gltf_file_getCamera(gltf_file_t* self,
+                                       uint32_t idx);
+gltf_mesh_t*       gltf_file_getMesh(gltf_file_t* self,
+                                     uint32_t idx);
+gltf_material_t*   gltf_file_getMaterial(gltf_file_t* self,
+                                         uint32_t idx);
+gltf_accessor_t*   gltf_file_getAccessor(gltf_file_t* self,
+                                         uint32_t idx);
+gltf_texture_t*    gltf_file_getTexture(gltf_file_t* self,
+                                        uint32_t idx);
+gltf_bufferView_t* gltf_file_getBufferView(gltf_file_t* self,
+                                           uint32_t idx);
+gltf_image_t*      gltf_file_getImage(gltf_file_t* self,
+                                      uint32_t idx);
+const char*        gltf_file_getBuffer(gltf_file_t* self,
+                                       gltf_bufferView_t* bufferView);
 
 #endif
