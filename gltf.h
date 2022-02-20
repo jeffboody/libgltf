@@ -302,7 +302,6 @@ typedef struct gltf_file_s
 	cc_list_t* bufferViews;
 	cc_list_t* images;
 	cc_list_t* buffers;
-	cc_list_t* chunks;
 	// TODO - samplers, skins and animations
 
 	// file data

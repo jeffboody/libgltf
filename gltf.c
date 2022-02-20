@@ -306,7 +306,7 @@ static void gltf_node_delete(gltf_node_t** _self)
 	ASSERT(_self);
 
 	gltf_node_t* self = *_self;
-	if(self == NULL)
+	if(self)
 	{
 		cc_listIter_t* iter = cc_list_head(self->children);
 		while(iter)
@@ -516,7 +516,7 @@ static void gltf_camera_delete(gltf_camera_t** _self)
 	ASSERT(_self);
 
 	gltf_camera_t* self = *_self;
-	if(self == NULL)
+	if(self)
 	{
 		FREE(self);
 		*_self = NULL;
@@ -823,7 +823,7 @@ static void gltf_mesh_delete(gltf_mesh_t** _self)
 	ASSERT(_self);
 
 	gltf_mesh_t* self = *_self;
-	if(self == NULL)
+	if(self)
 	{
 		cc_listIter_t* iter = cc_list_head(self->primitives);
 		while(iter)
@@ -834,6 +834,7 @@ static void gltf_mesh_delete(gltf_mesh_t** _self)
 			gltf_primitive_delete(&prim);
 		}
 
+		cc_list_delete(&self->primitives);
 		FREE(self);
 		*_self = NULL;
 	}
@@ -1190,7 +1191,7 @@ static void gltf_material_delete(gltf_material_t** _self)
 	ASSERT(_self);
 
 	gltf_material_t* self = *_self;
-	if(self == NULL)
+	if(self)
 	{
 		FREE(self);
 		*_self = NULL;
@@ -1379,7 +1380,7 @@ static void gltf_accessor_delete(gltf_accessor_t** _self)
 	ASSERT(_self);
 
 	gltf_accessor_t* self = *_self;
-	if(self == NULL)
+	if(self)
 	{
 		FREE(self);
 		*_self = NULL;
@@ -1432,7 +1433,7 @@ static void gltf_texture_delete(gltf_texture_t** _self)
 	ASSERT(_self);
 
 	gltf_texture_t* self = *_self;
-	if(self == NULL)
+	if(self)
 	{
 		FREE(self);
 		*_self = NULL;
@@ -1513,7 +1514,7 @@ static void gltf_bufferView_delete(gltf_bufferView_t** _self)
 	ASSERT(_self);
 
 	gltf_bufferView_t* self = *_self;
-	if(self == NULL)
+	if(self)
 	{
 		FREE(self);
 		*_self = NULL;
@@ -1602,7 +1603,7 @@ static void gltf_image_delete(gltf_image_t** _self)
 	ASSERT(_self);
 
 	gltf_image_t* self = *_self;
-	if(self == NULL)
+	if(self)
 	{
 		FREE(self);
 		*_self = NULL;
@@ -1667,7 +1668,7 @@ static void gltf_buffer_delete(gltf_buffer_t** _self)
 	ASSERT(_self);
 
 	gltf_buffer_t* self = *_self;
-	if(self == NULL)
+	if(self)
 	{
 		FREE(self);
 		*_self = NULL;
@@ -2360,7 +2361,8 @@ gltf_file_parseJson(gltf_file_t* self, gltf_chunk_t* chunk,
 }
 
 static int
-gltf_file_parseChunk(gltf_file_t* self, size_t* _offset)
+gltf_file_parseChunk(gltf_file_t* self, size_t* _offset,
+                     gltf_chunkType_e chunkType)
 {
 	ASSERT(self);
 	ASSERT(_offset);
@@ -2379,6 +2381,19 @@ gltf_file_parseChunk(gltf_file_t* self, size_t* _offset)
 		return 0;
 	}
 
+	#ifdef LOG_DEBUG
+	printf("CHUNK: offset=%u, length=%u, type=0x%X\n",
+	     (uint32_t) *_offset, (uint32_t) chunk->chunkLength,
+	     (uint32_t) chunk->chunkType);
+	#endif
+
+	// check expected chunkType
+	if(chunk->chunkType != chunkType)
+	{
+		LOGE("invalid chunkType=%u", chunk->chunkType);
+		return 0;
+	}
+
 	// validate and parse chunk
 	if(chunk->chunkType == GLTF_CHUNK_TYPE_JSON)
 	{
@@ -2394,12 +2409,6 @@ gltf_file_parseChunk(gltf_file_t* self, size_t* _offset)
 	else
 	{
 		LOGE("invalid chunkType=%u", chunk->chunkType);
-		return 0;
-	}
-
-	// append chunk address
-	if(cc_list_append(self->chunks, NULL, chunk) == NULL)
-	{
 		return 0;
 	}
 
@@ -2502,8 +2511,6 @@ static void gltf_file_discard(gltf_file_t* self)
 		         cc_list_remove(self->buffers, &iter);
 		gltf_buffer_delete(&buffer);
 	}
-
-	cc_list_discard(self->chunks);
 }
 
 /***********************************************************
@@ -2636,12 +2643,6 @@ gltf_file_t* gltf_file_openf(FILE* f, size_t length)
 		goto fail_buffers;
 	}
 
-	self->chunks = cc_list_new();
-	if(self->chunks == NULL)
-	{
-		goto fail_chunks;
-	}
-
 	// allocate data
 	self->data = (char*) CALLOC(self->length, sizeof(char));
 	if(self->data == NULL)
@@ -2664,13 +2665,40 @@ gltf_file_t* gltf_file_openf(FILE* f, size_t length)
 	}
 
 	// parse chunks
-	size_t offset = sizeof(gltf_header_t);
+	uint32_t chunk  = 0;
+	size_t   offset = sizeof(gltf_header_t);
 	while(offset < self->length)
 	{
-		if(gltf_file_parseChunk(self, &offset) == 0)
+		if(chunk == 0)
 		{
+			if(gltf_file_parseChunk(self, &offset,
+			                        GLTF_CHUNK_TYPE_JSON) == 0)
+			{
+				goto fail_chunk;
+			}
+		}
+		else if(chunk == 1)
+		{
+			if(gltf_file_parseChunk(self, &offset,
+			                        GLTF_CHUNK_TYPE_BIN) == 0)
+			{
+				goto fail_chunk;
+			}
+		}
+		else
+		{
+			LOGE("invalid chunk=%u", chunk);
 			goto fail_chunk;
 		}
+
+		++chunk;
+	}
+
+	// ensure json + bin chunks exist
+	if(chunk != 2)
+	{
+		LOGE("invalid chunk=%u", chunk);
+		goto fail_chunk;
 	}
 
 	// success
@@ -2683,8 +2711,6 @@ gltf_file_t* gltf_file_openf(FILE* f, size_t length)
 	fail_read_data:
 		FREE(self->data);
 	fail_alloc_data:
-		cc_list_delete(&self->chunks);
-	fail_chunks:
 		cc_list_delete(&self->buffers);
 	fail_buffers:
 		cc_list_delete(&self->images);
@@ -2718,7 +2744,6 @@ void gltf_file_close(gltf_file_t** _self)
 	if(self)
 	{
 		gltf_file_discard(self);
-		cc_list_delete(&self->chunks);
 		cc_list_delete(&self->buffers);
 		cc_list_delete(&self->images);
 		cc_list_delete(&self->bufferViews);
