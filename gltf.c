@@ -2566,6 +2566,51 @@ gltf_file_t* gltf_file_openf(FILE* f, size_t length)
 {
 	ASSERT(f);
 
+	// allocate data
+	char* data = (char*) CALLOC(length, sizeof(char));
+	if(data == NULL)
+	{
+		LOGE("CALLOC failed");
+		return NULL;
+	}
+
+	// read data
+	if(fread((void*) data, length, 1, f) != 1)
+	{
+		LOGE("fread failed");
+		goto fail_read_data;
+	}
+
+	gltf_file_t* self;
+	self = gltf_file_openb(data, length, GLTF_FILEMODE_OWNED);
+	if(self == NULL)
+	{
+		goto fail_openb;
+	}
+
+	// success
+	return self;
+
+	// failure
+	fail_openb:
+	fail_read_data:
+		FREE(data);
+	return NULL;
+}
+
+gltf_file_t*
+gltf_file_openb(char* data, size_t size,
+                gltf_fileMode_e mode)
+{
+	ASSERT(data);
+
+	// check minimum file size
+	if(size < sizeof(gltf_header_t))
+	{
+		LOGE("invalid size=%" PRIu64, (uint64_t) size);
+		return NULL;
+	}
+
 	gltf_file_t* self;
 	self = (gltf_file_t*) CALLOC(1, sizeof(gltf_file_t));
 	if(self == NULL)
@@ -2574,13 +2619,21 @@ gltf_file_t* gltf_file_openf(FILE* f, size_t length)
 		return NULL;
 	}
 
-	self->length = length;
+	self->mode   = mode;
+	self->length = size;
 
-	// check minimum file length
-	if(self->length < sizeof(gltf_header_t))
+	if(mode == GLTF_FILEMODE_COPY)
 	{
-		LOGE("invalid length=%" PRIu64, (uint64_t) self->length);
-		goto fail_size;
+		self->data = (char*) CALLOC(1, size);
+		if(self->data == NULL)
+		{
+			goto fail_data;
+		}
+		memcpy(self->data, data, size);
+	}
+	else
+	{
+		self->data = data;
 	}
 
 	self->scenes = cc_list_new();
@@ -2643,21 +2696,6 @@ gltf_file_t* gltf_file_openf(FILE* f, size_t length)
 		goto fail_buffers;
 	}
 
-	// allocate data
-	self->data = (char*) CALLOC(self->length, sizeof(char));
-	if(self->data == NULL)
-	{
-		LOGE("CALLOC failed");
-		goto fail_alloc_data;
-	}
-
-	// read data
-	if(fread((void*) self->data, self->length, 1, f) != 1)
-	{
-		LOGE("fread failed");
-		goto fail_read_data;
-	}
-
 	// parse header
 	if(gltf_file_parseHeader(self) == 0)
 	{
@@ -2708,9 +2746,6 @@ gltf_file_t* gltf_file_openf(FILE* f, size_t length)
 	fail_chunk:
 		gltf_file_discard(self);
 	fail_header:
-	fail_read_data:
-		FREE(self->data);
-	fail_alloc_data:
 		cc_list_delete(&self->buffers);
 	fail_buffers:
 		cc_list_delete(&self->images);
@@ -2731,7 +2766,13 @@ gltf_file_t* gltf_file_openf(FILE* f, size_t length)
 	fail_nodes:
 		cc_list_delete(&self->scenes);
 	fail_scenes:
-	fail_size:
+	{
+		if(self->mode == GLTF_FILEMODE_COPY)
+		{
+			FREE(self->data);
+		}
+	}
+	fail_data:
 		FREE(self);
 	return NULL;
 }
@@ -2754,7 +2795,11 @@ void gltf_file_close(gltf_file_t** _self)
 		cc_list_delete(&self->cameras);
 		cc_list_delete(&self->nodes);
 		cc_list_delete(&self->scenes);
-		FREE(self->data);
+		if((self->mode == GLTF_FILEMODE_COPY) ||
+		   (self->mode == GLTF_FILEMODE_OWNED));
+		{
+			FREE(self->data);
+		}
 		FREE(self);
 		*_self = NULL;
 	}

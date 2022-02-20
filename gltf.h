@@ -289,6 +289,13 @@ typedef struct gltf_buffer_s
 	uint32_t byteLength;
 } gltf_buffer_t;
 
+typedef enum
+{
+	GLTF_FILEMODE_OWNED,
+	GLTF_FILEMODE_COPY,
+	GLTF_FILEMODE_REFERENCE,
+} gltf_fileMode_e;
+
 typedef struct gltf_file_s
 {
 	uint32_t   scene;
@@ -305,12 +312,15 @@ typedef struct gltf_file_s
 	// TODO - samplers, skins and animations
 
 	// file data
-	size_t length;
-	char*  data;
+	gltf_fileMode_e mode;
+	size_t          length;
+	char*           data;
 } gltf_file_t;
 
 gltf_file_t*       gltf_file_open(const char* fname);
 gltf_file_t*       gltf_file_openf(FILE* f, size_t size);
+gltf_file_t*       gltf_file_openb(char* data, size_t size,
+                                   gltf_fileMode_e mode);
 void               gltf_file_close(gltf_file_t** _self);
 gltf_scene_t*      gltf_file_getScene(gltf_file_t* self,
                                       uint32_t idx);
