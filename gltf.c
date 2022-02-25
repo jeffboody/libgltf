@@ -2796,7 +2796,7 @@ void gltf_file_close(gltf_file_t** _self)
 		cc_list_delete(&self->nodes);
 		cc_list_delete(&self->scenes);
 		if((self->mode == GLTF_FILEMODE_COPY) ||
-		   (self->mode == GLTF_FILEMODE_OWNED));
+		   (self->mode == GLTF_FILEMODE_OWNED))
 		{
 			FREE(self->data);
 		}
