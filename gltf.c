@@ -883,7 +883,7 @@ gltf_materialTexture_parse(gltf_materialTexture_t* self,
 	}
 
 	// check for required members
-	if((has_index == 0) || (has_texCoord == 0))
+	if(has_index == 0)
 	{
 		LOGE("invalid has_index=%i, has_texCoord=%i",
 		     has_index, has_texCoord);
