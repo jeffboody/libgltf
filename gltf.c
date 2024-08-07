@@ -28,7 +28,7 @@
 #define LOG_TAG "gltf"
 #include "../libcc/cc_log.h"
 #include "../libcc/cc_memory.h"
-#include "../jsmn/wrapper/jsmn_wrapper.h"
+#include "../libcc/jsmn/cc_jsmnWrapper.h"
 #include "gltf.h"
 
 typedef struct
@@ -54,13 +54,13 @@ typedef struct
 * private - objects                                        *
 ***********************************************************/
 
-static uint32_t gltf_val_uint32(jsmn_val_t* val)
+static uint32_t gltf_val_uint32(cc_jsmnVal_t* val)
 {
 	ASSERT(val);
 
 	uint32_t x = 0;
-	if((val->type == JSMN_TYPE_STRING) ||
-	   (val->type == JSMN_TYPE_PRIMITIVE))
+	if((val->type == CC_JSMN_TYPE_STRING) ||
+	   (val->type == CC_JSMN_TYPE_PRIMITIVE))
 	{
 		x = (uint32_t) strtol(val->data, NULL, 0);
 	}
@@ -72,13 +72,13 @@ static uint32_t gltf_val_uint32(jsmn_val_t* val)
 	return x;
 }
 
-static float gltf_val_float(jsmn_val_t* val)
+static float gltf_val_float(cc_jsmnVal_t* val)
 {
 	ASSERT(val);
 
 	float x = 0;
-	if((val->type == JSMN_TYPE_STRING) ||
-	   (val->type == JSMN_TYPE_PRIMITIVE))
+	if((val->type == CC_JSMN_TYPE_STRING) ||
+	   (val->type == CC_JSMN_TYPE_PRIMITIVE))
 	{
 		x = (float) strtod(val->data, NULL);
 	}
@@ -90,12 +90,13 @@ static float gltf_val_float(jsmn_val_t* val)
 	return x;
 }
 
-static void gltf_val_string(jsmn_val_t* val, char* str)
+static void
+gltf_val_string(cc_jsmnVal_t* val, char* str)
 {
 	ASSERT(val);
 	ASSERT(str);
 
-	if(val->type == JSMN_TYPE_STRING)
+	if(val->type == CC_JSMN_TYPE_STRING)
 	{
 		snprintf(str, 256, "%s", val->data);
 	}
@@ -107,19 +108,20 @@ static void gltf_val_string(jsmn_val_t* val, char* str)
 }
 
 static int
-gltf_val_floats(jsmn_val_t* val, uint32_t count, float* x)
+gltf_val_floats(cc_jsmnVal_t* val, uint32_t count,
+                float* x)
 {
 	ASSERT(val);
 	ASSERT(count > 0);
 	ASSERT(x);
 
-	if(val->type != JSMN_TYPE_ARRAY)
+	if(val->type != CC_JSMN_TYPE_ARRAY)
 	{
 		LOGE("invalid type=%u", val->type);
 		return 0;
 	}
 
-	jsmn_array_t* array = val->array;
+	cc_jsmnArray_t* array = val->array;
 	if(cc_list_size(array->list) != count)
 	{
 		LOGE("invalid size=%i", cc_list_size(array->list));
@@ -130,8 +132,8 @@ gltf_val_floats(jsmn_val_t* val, uint32_t count, float* x)
 	cc_listIter_t* iter = cc_list_head(array->list);
 	while(iter)
 	{
-		jsmn_val_t* item;
-		item   = (jsmn_val_t*) cc_list_peekIter(iter);
+		cc_jsmnVal_t* item;
+		item   = (cc_jsmnVal_t*) cc_list_peekIter(iter);
 		x[idx] = gltf_val_float(item);
 		++idx;
 
@@ -142,23 +144,24 @@ gltf_val_floats(jsmn_val_t* val, uint32_t count, float* x)
 }
 
 static int
-gltf_node_parseChildren(gltf_node_t* self, jsmn_val_t* val)
+gltf_node_parseChildren(gltf_node_t* self,
+                        cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_ARRAY)
+	if(val->type != CC_JSMN_TYPE_ARRAY)
 	{
 		LOGE("invalid type=%i", val->type);
 		return 0;
 	}
 
-	jsmn_val_t*    item;
+	cc_jsmnVal_t*  item;
 	uint32_t*      nd;
 	cc_listIter_t* iter = cc_list_head(val->array->list);
 	while(iter)
 	{
-		item = (jsmn_val_t*) cc_list_peekIter(iter);
+		item = (cc_jsmnVal_t*) cc_list_peekIter(iter);
 		nd   = (uint32_t*) CALLOC(1, sizeof(uint32_t));
 		if(nd == NULL)
 		{
@@ -184,11 +187,11 @@ gltf_node_parseChildren(gltf_node_t* self, jsmn_val_t* val)
 	return 0;
 }
 
-static gltf_node_t* gltf_node_new(jsmn_val_t* val)
+static gltf_node_t* gltf_node_new(cc_jsmnVal_t* val)
 {
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_OBJECT)
+	if(val->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%u", val->type);
 		return NULL;
@@ -217,12 +220,12 @@ static gltf_node_t* gltf_node_new(jsmn_val_t* val)
 	cc_mat4f_identity(&scale);
 	cc_mat4f_identity(&matrix);
 
-	jsmn_object_t* obj  = val->obj;
-	cc_listIter_t* iter = cc_list_head(obj->list);
+	cc_jsmnObject_t* obj  = val->obj;
+	cc_listIter_t*   iter = cc_list_head(obj->list);
 	while(iter)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 
 		if(strcmp(kv->key, "mesh") == 0)
 		{
@@ -324,12 +327,13 @@ static void gltf_node_delete(gltf_node_t** _self)
 }
 
 static void
-gltf_camera_parseType(gltf_camera_t* self, jsmn_val_t* val)
+gltf_camera_parseType(gltf_camera_t* self,
+                      cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_STRING)
+	if(val->type != CC_JSMN_TYPE_STRING)
 	{
 		LOGE("invalid type=%u", val->type);
 		return;
@@ -351,12 +355,12 @@ gltf_camera_parseType(gltf_camera_t* self, jsmn_val_t* val)
 
 static void
 gltf_camera_parsePerspective(gltf_camera_t* self,
-                             jsmn_val_t* val)
+                             cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_OBJECT)
+	if(val->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%u", val->type);
 		return;
@@ -364,12 +368,12 @@ gltf_camera_parsePerspective(gltf_camera_t* self,
 
 	gltf_cameraPerspective_t* cp = &self->cameraPerspective;
 
-	jsmn_object_t* obj  = val->obj;
-	cc_listIter_t* iter = cc_list_head(obj->list);
+	cc_jsmnObject_t* obj  = val->obj;
+	cc_listIter_t*   iter = cc_list_head(obj->list);
 	while(iter)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 
 		if(strcmp(kv->key, "aspectRatio") == 0)
 		{
@@ -398,12 +402,12 @@ gltf_camera_parsePerspective(gltf_camera_t* self,
 
 static void
 gltf_camera_parseOrthographic(gltf_camera_t* self,
-                              jsmn_val_t* val)
+                              cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_OBJECT)
+	if(val->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%u", val->type);
 		return;
@@ -411,12 +415,12 @@ gltf_camera_parseOrthographic(gltf_camera_t* self,
 
 	gltf_cameraOrthographic_t* co = &self->cameraOrthographic;
 
-	jsmn_object_t* obj  = val->obj;
-	cc_listIter_t* iter = cc_list_head(obj->list);
+	cc_jsmnObject_t* obj  = val->obj;
+	cc_listIter_t*   iter = cc_list_head(obj->list);
 	while(iter)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 
 		if(strcmp(kv->key, "xmag") == 0)
 		{
@@ -443,11 +447,12 @@ gltf_camera_parseOrthographic(gltf_camera_t* self,
 	}
 }
 
-static gltf_camera_t* gltf_camera_new(jsmn_val_t* val)
+static gltf_camera_t*
+gltf_camera_new(cc_jsmnVal_t* val)
 {
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_OBJECT)
+	if(val->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%u", val->type);
 		return NULL;
@@ -465,12 +470,12 @@ static gltf_camera_t* gltf_camera_new(jsmn_val_t* val)
 	int has_perspective  = 0;
 	int has_orthographic = 0;
 
-	jsmn_object_t* obj = val->obj;
+	cc_jsmnObject_t* obj = val->obj;
 	cc_listIter_t* iter = cc_list_head(obj->list);
 	while(iter)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 		if(strcmp(kv->key, "type") == 0)
 		{
 			gltf_camera_parseType(self, kv->val);
@@ -524,7 +529,7 @@ static void gltf_camera_delete(gltf_camera_t** _self)
 }
 
 static gltf_attribute_t*
-gltf_attribute_new(jsmn_keyval_t* kv)
+gltf_attribute_new(cc_jsmnKeyval_t* kv)
 {
 	ASSERT(kv);
 
@@ -558,24 +563,24 @@ gltf_attribute_delete(gltf_attribute_t** _self)
 
 static int
 gltf_primitive_parseAttributes(gltf_primitive_t* self,
-                               jsmn_val_t* val)
+                               cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_OBJECT)
+	if(val->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%u", val->type);
 		return 0;
 	}
 
-	jsmn_object_t*    obj  = val->obj;
+	cc_jsmnObject_t*  obj  = val->obj;
 	cc_listIter_t*    iter = cc_list_head(obj->list);
 	gltf_attribute_t* attr;
 	while(iter)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 
 		attr = gltf_attribute_new(kv);
 		if(attr == NULL)
@@ -601,11 +606,11 @@ gltf_primitive_parseAttributes(gltf_primitive_t* self,
 }
 
 static gltf_primitive_t*
-gltf_primitive_new(jsmn_val_t* val)
+gltf_primitive_new(cc_jsmnVal_t* val)
 {
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_OBJECT)
+	if(val->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%u", val->type);
 		return NULL;
@@ -629,12 +634,12 @@ gltf_primitive_new(jsmn_val_t* val)
 		goto fail_list;
 	}
 
-	jsmn_object_t* obj  = val->obj;
-	cc_listIter_t* iter = cc_list_head(obj->list);
+	cc_jsmnObject_t* obj  = val->obj;
+	cc_listIter_t*   iter = cc_list_head(obj->list);
 	while(iter)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 		if(strcmp(kv->key, "mode") == 0)
 		{
 			self->mode = (gltf_primitiveMode_e)
@@ -711,23 +716,23 @@ gltf_primitive_delete(gltf_primitive_t** _self)
 
 static int
 gltf_mesh_parsePrimitives(gltf_mesh_t* self,
-                          jsmn_val_t* val)
+                          cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_ARRAY)
+	if(val->type != CC_JSMN_TYPE_ARRAY)
 	{
 		LOGE("invalid type=%i", val->type);
 		return 0;
 	}
 
-	jsmn_val_t*       item;
+	cc_jsmnVal_t*     item;
 	gltf_primitive_t* prim;
 	cc_listIter_t*    iter = cc_list_head(val->array->list);
 	while(iter)
 	{
-		item = (jsmn_val_t*) cc_list_peekIter(iter);
+		item = (cc_jsmnVal_t*) cc_list_peekIter(iter);
 		prim = gltf_primitive_new(item);
 		if(prim == NULL)
 		{
@@ -752,11 +757,11 @@ gltf_mesh_parsePrimitives(gltf_mesh_t* self,
 	return 0;
 }
 
-static gltf_mesh_t* gltf_mesh_new(jsmn_val_t* val)
+static gltf_mesh_t* gltf_mesh_new(cc_jsmnVal_t* val)
 {
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_OBJECT)
+	if(val->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%u", val->type);
 		return NULL;
@@ -776,12 +781,12 @@ static gltf_mesh_t* gltf_mesh_new(jsmn_val_t* val)
 		goto fail_list;
 	}
 
-	jsmn_object_t* obj  = val->obj;
+	cc_jsmnObject_t* obj  = val->obj;
 	cc_listIter_t* iter = cc_list_head(obj->list);
 	while(iter)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 		if(strcmp(kv->key, "primitives") == 0)
 		{
 			if(gltf_mesh_parsePrimitives(self, kv->val) == 0)
@@ -842,12 +847,12 @@ static void gltf_mesh_delete(gltf_mesh_t** _self)
 
 static int
 gltf_materialTexture_parse(gltf_materialTexture_t* self,
-                           jsmn_val_t* val)
+                           cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_OBJECT)
+	if(val->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%u", val->type);
 		return 0;
@@ -857,12 +862,12 @@ gltf_materialTexture_parse(gltf_materialTexture_t* self,
 	int has_index    = 0;
 	int has_texCoord = 0;
 
-	jsmn_object_t* obj  = val->obj;
-	cc_listIter_t* iter = cc_list_head(obj->list);
+	cc_jsmnObject_t* obj  = val->obj;
+	cc_listIter_t*   iter = cc_list_head(obj->list);
 	while(iter)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 
 		if(strcmp(kv->key, "index") == 0)
 		{
@@ -895,12 +900,12 @@ gltf_materialTexture_parse(gltf_materialTexture_t* self,
 
 static int
 gltf_material_parsePbrMetallicRoughness(gltf_material_t* self,
-                                        jsmn_val_t* val)
+                                        cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_OBJECT)
+	if(val->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%u", val->type);
 		return 0;
@@ -909,13 +914,13 @@ gltf_material_parsePbrMetallicRoughness(gltf_material_t* self,
 	gltf_materialPbrMetallicRoughness_t* pbr;
 	pbr = &self->pbrMetallicRoughness;
 
-	int            ret  = 1;
-	jsmn_object_t* obj  = val->obj;
-	cc_listIter_t* iter = cc_list_head(obj->list);
+	int              ret  = 1;
+	cc_jsmnObject_t* obj  = val->obj;
+	cc_listIter_t*   iter = cc_list_head(obj->list);
 	while(iter)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 
 		if(strcmp(kv->key, "baseColorTexture") == 0)
 		{
@@ -955,12 +960,12 @@ gltf_material_parsePbrMetallicRoughness(gltf_material_t* self,
 
 static int
 gltf_material_parseNormalTexture(gltf_material_t* self,
-                                 jsmn_val_t* val)
+                                 cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_OBJECT)
+	if(val->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%u", val->type);
 		return 0;
@@ -972,12 +977,12 @@ gltf_material_parseNormalTexture(gltf_material_t* self,
 		return 0;
 	}
 
-	jsmn_object_t* obj  = val->obj;
-	cc_listIter_t* iter = cc_list_head(obj->list);
+	cc_jsmnObject_t* obj  = val->obj;
+	cc_listIter_t*   iter = cc_list_head(obj->list);
 	while(iter)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 
 		if(strcmp(kv->key, "scale") == 0)
 		{
@@ -996,12 +1001,12 @@ gltf_material_parseNormalTexture(gltf_material_t* self,
 
 static int
 gltf_material_parseOcclusionTexture(gltf_material_t* self,
-                                    jsmn_val_t* val)
+                                    cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_OBJECT)
+	if(val->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%u", val->type);
 		return 0;
@@ -1014,12 +1019,12 @@ gltf_material_parseOcclusionTexture(gltf_material_t* self,
 		return 0;
 	}
 
-	jsmn_object_t* obj  = val->obj;
-	cc_listIter_t* iter = cc_list_head(obj->list);
+	cc_jsmnObject_t* obj  = val->obj;
+	cc_listIter_t*   iter = cc_list_head(obj->list);
 	while(iter)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 
 		if(strcmp(kv->key, "strength") == 0)
 		{
@@ -1038,13 +1043,13 @@ gltf_material_parseOcclusionTexture(gltf_material_t* self,
 
 static void
 gltf_material_parseDoubleSided(gltf_material_t* self,
-                               jsmn_val_t* val)
+                               cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if((val->type == JSMN_TYPE_STRING) ||
-	   (val->type == JSMN_TYPE_PRIMITIVE))
+	if((val->type == CC_JSMN_TYPE_STRING) ||
+	   (val->type == CC_JSMN_TYPE_PRIMITIVE))
 	{
 		if(strcmp(val->data, "true") == 0)
 		{
@@ -1063,12 +1068,12 @@ gltf_material_parseDoubleSided(gltf_material_t* self,
 
 static void
 gltf_material_parseAlphaMode(gltf_material_t* self,
-                             jsmn_val_t* val)
+                             cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_STRING)
+	if(val->type != CC_JSMN_TYPE_STRING)
 	{
 		LOGE("invalid type=%u", val->type);
 		return;
@@ -1089,11 +1094,12 @@ gltf_material_parseAlphaMode(gltf_material_t* self,
 	}
 }
 
-static gltf_material_t* gltf_material_new(jsmn_val_t* val)
+static gltf_material_t*
+gltf_material_new(cc_jsmnVal_t* val)
 {
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_OBJECT)
+	if(val->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%u", val->type);
 		return NULL;
@@ -1116,12 +1122,12 @@ static gltf_material_t* gltf_material_new(jsmn_val_t* val)
 	self->normalTexture.scale                  = 1.0f;
 	self->occlusionTexture.strength            = 1.0f;
 
-	jsmn_object_t* obj  = val->obj;
-	cc_listIter_t* iter = cc_list_head(obj->list);
+	cc_jsmnObject_t* obj  = val->obj;
+	cc_listIter_t*   iter = cc_list_head(obj->list);
 	while(iter)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 		if(strcmp(kv->key, "pbrMetallicRoughness") == 0)
 		{
 			if(gltf_material_parsePbrMetallicRoughness(self,
@@ -1200,12 +1206,12 @@ static void gltf_material_delete(gltf_material_t** _self)
 
 static int
 gltf_accessor_parseType(gltf_accessor_t* self,
-                        jsmn_val_t* val)
+                        cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_STRING)
+	if(val->type != CC_JSMN_TYPE_STRING)
 	{
 		LOGE("invalid type=%u", val->type);
 		return 0;
@@ -1248,11 +1254,12 @@ gltf_accessor_parseType(gltf_accessor_t* self,
 	return 1;
 }
 
-static gltf_accessor_t* gltf_accessor_new(jsmn_val_t* val)
+static gltf_accessor_t*
+gltf_accessor_new(cc_jsmnVal_t* val)
 {
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_OBJECT)
+	if(val->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%u", val->type);
 		return NULL;
@@ -1272,13 +1279,13 @@ static gltf_accessor_t* gltf_accessor_new(jsmn_val_t* val)
 	int has_min           = 0;
 	int has_max           = 0;
 
-	uint32_t       elem  = 0;
-	jsmn_object_t* obj   = val->obj;
-	cc_listIter_t* iter  = cc_list_head(obj->list);
+	uint32_t         elem  = 0;
+	cc_jsmnObject_t* obj   = val->obj;
+	cc_listIter_t*   iter  = cc_list_head(obj->list);
 	while(iter)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 
 		if(strcmp(kv->key, "bufferView") == 0)
 		{
@@ -1387,11 +1394,12 @@ static void gltf_accessor_delete(gltf_accessor_t** _self)
 	}
 }
 
-static gltf_texture_t* gltf_texture_new(jsmn_val_t* val)
+static gltf_texture_t*
+gltf_texture_new(cc_jsmnVal_t* val)
 {
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_OBJECT)
+	if(val->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%u", val->type);
 		return NULL;
@@ -1406,12 +1414,12 @@ static gltf_texture_t* gltf_texture_new(jsmn_val_t* val)
 		return NULL;
 	}
 
-	jsmn_object_t* obj = val->obj;
-	cc_listIter_t* iter = cc_list_head(obj->list);
+	cc_jsmnObject_t* obj = val->obj;
+	cc_listIter_t*   iter = cc_list_head(obj->list);
 	while(iter)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 		if(strcmp(kv->key, "source") == 0)
 		{
 			self->source     = gltf_val_uint32(kv->val);
@@ -1441,11 +1449,11 @@ static void gltf_texture_delete(gltf_texture_t** _self)
 }
 
 static gltf_bufferView_t*
-gltf_bufferView_new(jsmn_val_t* val)
+gltf_bufferView_new(cc_jsmnVal_t* val)
 {
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_OBJECT)
+	if(val->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%u", val->type);
 		return NULL;
@@ -1464,12 +1472,12 @@ gltf_bufferView_new(jsmn_val_t* val)
 	int has_buffer     = 0;
 	int has_byteLength = 0;
 
-	jsmn_object_t* obj  = val->obj;
-	cc_listIter_t* iter = cc_list_head(obj->list);
+	cc_jsmnObject_t* obj  = val->obj;
+	cc_listIter_t*   iter = cc_list_head(obj->list);
 	while(iter)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 		if(strcmp(kv->key, "buffer") == 0)
 		{
 			self->buffer = gltf_val_uint32(kv->val);
@@ -1521,11 +1529,11 @@ static void gltf_bufferView_delete(gltf_bufferView_t** _self)
 	}
 }
 
-static int gltf_image_parseMimeType(jsmn_val_t* val)
+static int gltf_image_parseMimeType(cc_jsmnVal_t* val)
 {
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_STRING)
+	if(val->type != CC_JSMN_TYPE_STRING)
 	{
 		LOGE("invalid type=%u", val->type);
 		return GLTF_IMAGE_TYPE_UNKNOWN;
@@ -1543,11 +1551,11 @@ static int gltf_image_parseMimeType(jsmn_val_t* val)
 	return GLTF_IMAGE_TYPE_UNKNOWN;
 }
 
-static gltf_image_t* gltf_image_new(jsmn_val_t* val)
+static gltf_image_t* gltf_image_new(cc_jsmnVal_t* val)
 {
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_OBJECT)
+	if(val->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%u", val->type);
 		return NULL;
@@ -1562,12 +1570,12 @@ static gltf_image_t* gltf_image_new(jsmn_val_t* val)
 		return NULL;
 	}
 
-	jsmn_object_t* obj  = val->obj;
-	cc_listIter_t* iter = cc_list_head(obj->list);
+	cc_jsmnObject_t* obj  = val->obj;
+	cc_listIter_t*   iter = cc_list_head(obj->list);
 	while(iter)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 
 		if(strcmp(kv->key, "bufferView") == 0)
 		{
@@ -1610,11 +1618,11 @@ static void gltf_image_delete(gltf_image_t** _self)
 	}
 }
 
-static gltf_buffer_t* gltf_buffer_new(jsmn_val_t* val)
+static gltf_buffer_t* gltf_buffer_new(cc_jsmnVal_t* val)
 {
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_OBJECT)
+	if(val->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%u", val->type);
 		return NULL;
@@ -1632,12 +1640,12 @@ static gltf_buffer_t* gltf_buffer_new(jsmn_val_t* val)
 	// required members
 	int has_byteLength = 0;
 
-	jsmn_object_t* obj  = val->obj;
+	cc_jsmnObject_t* obj  = val->obj;
 	cc_listIter_t* iter = cc_list_head(obj->list);
 	while(iter)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 
 		if(strcmp(kv->key, "byteLength") == 0)
 		{
@@ -1676,23 +1684,23 @@ static void gltf_buffer_delete(gltf_buffer_t** _self)
 }
 
 static int
-gltf_scene_parseNodes(gltf_scene_t* self, jsmn_val_t* val)
+gltf_scene_parseNodes(gltf_scene_t* self, cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_ARRAY)
+	if(val->type != CC_JSMN_TYPE_ARRAY)
 	{
 		LOGE("invalid type=%i", val->type);
 		return 0;
 	}
 
-	jsmn_val_t*    item;
+	cc_jsmnVal_t*  item;
 	uint32_t*      nd;
 	cc_listIter_t* iter = cc_list_head(val->array->list);
 	while(iter)
 	{
-		item = (jsmn_val_t*) cc_list_peekIter(iter);
+		item = (cc_jsmnVal_t*) cc_list_peekIter(iter);
 		nd   = (uint32_t*) CALLOC(1, sizeof(uint32_t));
 		if(nd == NULL)
 		{
@@ -1718,11 +1726,11 @@ gltf_scene_parseNodes(gltf_scene_t* self, jsmn_val_t* val)
 	return 0;
 }
 
-static gltf_scene_t* gltf_scene_new(jsmn_val_t* val)
+static gltf_scene_t* gltf_scene_new(cc_jsmnVal_t* val)
 {
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_OBJECT)
+	if(val->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%u", val->type);
 		return NULL;
@@ -1742,12 +1750,12 @@ static gltf_scene_t* gltf_scene_new(jsmn_val_t* val)
 		goto fail_list;
 	}
 
-	jsmn_object_t* obj  = val->obj;
+	cc_jsmnObject_t* obj  = val->obj;
 	cc_listIter_t* iter = cc_list_head(obj->list);
 	while(iter)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 
 		if(strcmp(kv->key, "name") == 0)
 		{
@@ -1834,13 +1842,13 @@ gltf_file_parseHeader(gltf_file_t* self)
 
 static int
 gltf_file_parseDefaultScene(gltf_file_t* self,
-                            jsmn_val_t* val)
+                            cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if((val->type == JSMN_TYPE_STRING) ||
-	   (val->type == JSMN_TYPE_PRIMITIVE))
+	if((val->type == CC_JSMN_TYPE_STRING) ||
+	   (val->type == CC_JSMN_TYPE_PRIMITIVE))
 	{
 		self->scene = (uint32_t) strtol(val->data, NULL, 0);
 		return 1;
@@ -1851,23 +1859,23 @@ gltf_file_parseDefaultScene(gltf_file_t* self,
 }
 
 static int
-gltf_file_parseScenes(gltf_file_t* self, jsmn_val_t* val)
+gltf_file_parseScenes(gltf_file_t* self, cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_ARRAY)
+	if(val->type != CC_JSMN_TYPE_ARRAY)
 	{
 		LOGE("invalid type=%i", val->type);
 		return 0;
 	}
 
-	jsmn_val_t*    item;
+	cc_jsmnVal_t*  item;
 	gltf_scene_t*  scene;
 	cc_listIter_t* iter = cc_list_head(val->array->list);
 	while(iter)
 	{
-		item  = (jsmn_val_t*) cc_list_peekIter(iter);
+		item  = (cc_jsmnVal_t*) cc_list_peekIter(iter);
 		scene = gltf_scene_new(item);
 		if(scene == NULL)
 		{
@@ -1893,23 +1901,23 @@ gltf_file_parseScenes(gltf_file_t* self, jsmn_val_t* val)
 }
 
 static int
-gltf_file_parseNodes(gltf_file_t* self, jsmn_val_t* val)
+gltf_file_parseNodes(gltf_file_t* self, cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_ARRAY)
+	if(val->type != CC_JSMN_TYPE_ARRAY)
 	{
 		LOGE("invalid type=%i", val->type);
 		return 0;
 	}
 
-	jsmn_val_t*    item;
+	cc_jsmnVal_t*  item;
 	gltf_node_t*   node;
 	cc_listIter_t* iter = cc_list_head(val->array->list);
 	while(iter)
 	{
-		item  = (jsmn_val_t*) cc_list_peekIter(iter);
+		item  = (cc_jsmnVal_t*) cc_list_peekIter(iter);
 		node = gltf_node_new(item);
 		if(node == NULL)
 		{
@@ -1935,23 +1943,23 @@ gltf_file_parseNodes(gltf_file_t* self, jsmn_val_t* val)
 }
 
 static int
-gltf_file_parseCameras(gltf_file_t* self, jsmn_val_t* val)
+gltf_file_parseCameras(gltf_file_t* self, cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_ARRAY)
+	if(val->type != CC_JSMN_TYPE_ARRAY)
 	{
 		LOGE("invalid type=%i", val->type);
 		return 0;
 	}
 
-	jsmn_val_t*    item;
+	cc_jsmnVal_t*  item;
 	gltf_camera_t* camera;
 	cc_listIter_t* iter = cc_list_head(val->array->list);
 	while(iter)
 	{
-		item   = (jsmn_val_t*) cc_list_peekIter(iter);
+		item   = (cc_jsmnVal_t*) cc_list_peekIter(iter);
 		camera = gltf_camera_new(item);
 		if(camera == NULL)
 		{
@@ -1977,23 +1985,23 @@ gltf_file_parseCameras(gltf_file_t* self, jsmn_val_t* val)
 }
 
 static int
-gltf_file_parseMeshes(gltf_file_t* self, jsmn_val_t* val)
+gltf_file_parseMeshes(gltf_file_t* self, cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_ARRAY)
+	if(val->type != CC_JSMN_TYPE_ARRAY)
 	{
 		LOGE("invalid type=%i", val->type);
 		return 0;
 	}
 
-	jsmn_val_t*    item;
+	cc_jsmnVal_t*  item;
 	gltf_mesh_t*   mesh;
 	cc_listIter_t* iter = cc_list_head(val->array->list);
 	while(iter)
 	{
-		item = (jsmn_val_t*) cc_list_peekIter(iter);
+		item = (cc_jsmnVal_t*) cc_list_peekIter(iter);
 		mesh = gltf_mesh_new(item);
 		if(mesh == NULL)
 		{
@@ -2019,23 +2027,24 @@ gltf_file_parseMeshes(gltf_file_t* self, jsmn_val_t* val)
 }
 
 static int
-gltf_file_parseMaterials(gltf_file_t* self, jsmn_val_t* val)
+gltf_file_parseMaterials(gltf_file_t* self,
+                         cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_ARRAY)
+	if(val->type != CC_JSMN_TYPE_ARRAY)
 	{
 		LOGE("invalid type=%i", val->type);
 		return 0;
 	}
 
-	jsmn_val_t*      item;
+	cc_jsmnVal_t*    item;
 	gltf_material_t* material;
 	cc_listIter_t*   iter = cc_list_head(val->array->list);
 	while(iter)
 	{
-		item     = (jsmn_val_t*) cc_list_peekIter(iter);
+		item     = (cc_jsmnVal_t*) cc_list_peekIter(iter);
 		material = gltf_material_new(item);
 		if(material == NULL)
 		{
@@ -2061,23 +2070,24 @@ gltf_file_parseMaterials(gltf_file_t* self, jsmn_val_t* val)
 }
 
 static int
-gltf_file_parseAccessors(gltf_file_t* self, jsmn_val_t* val)
+gltf_file_parseAccessors(gltf_file_t* self,
+                         cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_ARRAY)
+	if(val->type != CC_JSMN_TYPE_ARRAY)
 	{
 		LOGE("invalid type=%i", val->type);
 		return 0;
 	}
 
-	jsmn_val_t*      item;
+	cc_jsmnVal_t*    item;
 	gltf_accessor_t* accessor;
 	cc_listIter_t*   iter = cc_list_head(val->array->list);
 	while(iter)
 	{
-		item     = (jsmn_val_t*) cc_list_peekIter(iter);
+		item     = (cc_jsmnVal_t*) cc_list_peekIter(iter);
 		accessor = gltf_accessor_new(item);
 		if(accessor == NULL)
 		{
@@ -2103,23 +2113,24 @@ gltf_file_parseAccessors(gltf_file_t* self, jsmn_val_t* val)
 }
 
 static int
-gltf_file_parseTextures(gltf_file_t* self, jsmn_val_t* val)
+gltf_file_parseTextures(gltf_file_t* self,
+                        cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_ARRAY)
+	if(val->type != CC_JSMN_TYPE_ARRAY)
 	{
 		LOGE("invalid type=%i", val->type);
 		return 0;
 	}
 
-	jsmn_val_t*     item;
+	cc_jsmnVal_t*   item;
 	gltf_texture_t* texture;
 	cc_listIter_t*  iter = cc_list_head(val->array->list);
 	while(iter)
 	{
-		item     = (jsmn_val_t*) cc_list_peekIter(iter);
+		item     = (cc_jsmnVal_t*) cc_list_peekIter(iter);
 		texture = gltf_texture_new(item);
 		if(texture == NULL)
 		{
@@ -2145,23 +2156,24 @@ gltf_file_parseTextures(gltf_file_t* self, jsmn_val_t* val)
 }
 
 static int
-gltf_file_parseBufferViews(gltf_file_t* self, jsmn_val_t* val)
+gltf_file_parseBufferViews(gltf_file_t* self,
+                           cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_ARRAY)
+	if(val->type != CC_JSMN_TYPE_ARRAY)
 	{
 		LOGE("invalid type=%i", val->type);
 		return 0;
 	}
 
-	jsmn_val_t*        item;
+	cc_jsmnVal_t*      item;
 	gltf_bufferView_t* bufferView;
 	cc_listIter_t*     iter = cc_list_head(val->array->list);
 	while(iter)
 	{
-		item       = (jsmn_val_t*) cc_list_peekIter(iter);
+		item       = (cc_jsmnVal_t*) cc_list_peekIter(iter);
 		bufferView = gltf_bufferView_new(item);
 		if(bufferView == NULL)
 		{
@@ -2187,23 +2199,24 @@ gltf_file_parseBufferViews(gltf_file_t* self, jsmn_val_t* val)
 }
 
 static int
-gltf_file_parseImages(gltf_file_t* self, jsmn_val_t* val)
+gltf_file_parseImages(gltf_file_t* self,
+                      cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_ARRAY)
+	if(val->type != CC_JSMN_TYPE_ARRAY)
 	{
 		LOGE("invalid type=%i", val->type);
 		return 0;
 	}
 
-	jsmn_val_t*    item;
+	cc_jsmnVal_t*  item;
 	gltf_image_t*  image;
 	cc_listIter_t* iter = cc_list_head(val->array->list);
 	while(iter)
 	{
-		item  = (jsmn_val_t*) cc_list_peekIter(iter);
+		item  = (cc_jsmnVal_t*) cc_list_peekIter(iter);
 		image = gltf_image_new(item);
 		if(image == NULL)
 		{
@@ -2229,23 +2242,24 @@ gltf_file_parseImages(gltf_file_t* self, jsmn_val_t* val)
 }
 
 static int
-gltf_file_parseBuffers(gltf_file_t* self, jsmn_val_t* val)
+gltf_file_parseBuffers(gltf_file_t* self,
+                       cc_jsmnVal_t* val)
 {
 	ASSERT(self);
 	ASSERT(val);
 
-	if(val->type != JSMN_TYPE_ARRAY)
+	if(val->type != CC_JSMN_TYPE_ARRAY)
 	{
 		LOGE("invalid type=%i", val->type);
 		return 0;
 	}
 
-	jsmn_val_t*    item;
+	cc_jsmnVal_t*  item;
 	gltf_buffer_t* buffer;
 	cc_listIter_t* iter = cc_list_head(val->array->list);
 	while(iter)
 	{
-		item   = (jsmn_val_t*) cc_list_peekIter(iter);
+		item   = (cc_jsmnVal_t*) cc_list_peekIter(iter);
 		buffer = gltf_buffer_new(item);
 		if(buffer == NULL)
 		{
@@ -2279,30 +2293,30 @@ gltf_file_parseJson(gltf_file_t* self, gltf_chunk_t* chunk,
 
 	char* data = &self->data[offset + sizeof(gltf_chunk_t)];
 
-	jsmn_val_t* root;
-	root = jsmn_val_new(data, chunk->chunkLength);
+	cc_jsmnVal_t* root;
+	root = cc_jsmnVal_new(data, chunk->chunkLength);
 	if(root == NULL)
 	{
 		return 0;
 	}
 
 	#ifdef LOG_DEBUG
-	jsmn_val_print(root);
+	cc_jsmnVal_print(root);
 	#endif
 
 	int result = 1;
-	if(root->type != JSMN_TYPE_OBJECT)
+	if(root->type != CC_JSMN_TYPE_OBJECT)
 	{
 		LOGE("invalid type=%i", root->type);
 		result = 0;
 	}
 
-	jsmn_object_t* obj  = root->obj;
-	cc_listIter_t* iter = cc_list_head(obj->list);
+	cc_jsmnObject_t* obj  = root->obj;
+	cc_listIter_t*   iter = cc_list_head(obj->list);
 	while(iter && result)
 	{
-		jsmn_keyval_t* kv;
-		kv = (jsmn_keyval_t*) cc_list_peekIter(iter);
+		cc_jsmnKeyval_t* kv;
+		kv = (cc_jsmnKeyval_t*) cc_list_peekIter(iter);
 		if(strcmp(kv->key, "scene") == 0)
 		{
 			result &= gltf_file_parseDefaultScene(self, kv->val);
@@ -2355,7 +2369,7 @@ gltf_file_parseJson(gltf_file_t* self, gltf_chunk_t* chunk,
 		iter = cc_list_next(iter);
 	}
 
-	jsmn_val_delete(&root);
+	cc_jsmnVal_delete(&root);
 
 	return result;
 }
