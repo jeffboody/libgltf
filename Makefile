@@ -5,6 +5,9 @@ OBJECTS  = $(SOURCE:.c=.o)
 HFILES   = $(CLASSES:%=%.h)
 OPT      = -O2 -Wall
 CFLAGS   = $(OPT) -I.
+ifeq ($(GLTF_DEBUG),1)
+	CFLAGS += -DGLTF_DEBUG
+endif
 LDFLAGS  =
 AR       = ar
 

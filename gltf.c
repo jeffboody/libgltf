@@ -25,6 +25,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef GLTF_DEBUG
+	#define LOG_DEBUG
+#endif
 #define LOG_TAG "gltf"
 #include "../libcc/cc_log.h"
 #include "../libcc/cc_memory.h"
@@ -2300,7 +2303,7 @@ gltf_file_parseJson(gltf_file_t* self, gltf_chunk_t* chunk,
 		return 0;
 	}
 
-	#ifdef LOG_DEBUG
+	#ifdef GLTF_DEBUG
 	cc_jsmnVal_print(root);
 	#endif
 
@@ -2395,7 +2398,7 @@ gltf_file_parseChunk(gltf_file_t* self, size_t* _offset,
 		return 0;
 	}
 
-	#ifdef LOG_DEBUG
+	#ifdef GLTF_DEBUG
 	printf("CHUNK: offset=%u, length=%u, type=0x%X\n",
 	     (uint32_t) *_offset, (uint32_t) chunk->chunkLength,
 	     (uint32_t) chunk->chunkType);

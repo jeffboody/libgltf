@@ -1,4 +1,6 @@
+export CC_USE_JSMN  = 1
 export CC_USE_MATH  = 1
+export GLTF_DEBUG   = 1
 
 TARGET   = gltf-info
 CLASSES  =
@@ -7,15 +9,15 @@ OBJECTS  = $(TARGET).o $(CLASSES:%=%.o)
 HFILES   = $(CLASSES:%=%.h)
 OPT      = -O2 -Wall
 CFLAGS   = $(OPT) -I.
-LDFLAGS  =  -Llibgltf -lgltf -Ljsmn/wrapper -ljsmn -Llibcc -lcc -lm
+LDFLAGS  =  -Llibgltf -lgltf -Llibcc -lcc -lm
 CCC      = gcc
 
 all: $(TARGET)
 
-$(TARGET): $(OBJECTS) libgltf libcc jsmn
+$(TARGET): $(OBJECTS) libgltf libcc
 	$(CCC) $(OPT) $(OBJECTS) -o $@ $(LDFLAGS)
 
-.PHONY: libgltf libcc jsmn
+.PHONY: libgltf libcc
 
 libgltf:
 	$(MAKE) -C libgltf
@@ -23,14 +25,10 @@ libgltf:
 libcc:
 	$(MAKE) -C libcc
 
-jsmn:
-	$(MAKE) -C jsmn/wrapper
-
 clean:
 	rm -f $(OBJECTS) *~ \#*\# $(TARGET)
 	$(MAKE) -C libgltf clean
 	$(MAKE) -C libcc clean
-	$(MAKE) -C jsmn/wrapper clean
 	rm libgltf libcc jsmn
 
 $(OBJECTS): $(HFILES)
